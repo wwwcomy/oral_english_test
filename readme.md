@@ -258,3 +258,17 @@ new Audio(audio_url).play()
 | Day 5 | 前端录音              |
 | Day 6 | 前后端打通             |
 | Day 7 | 调整 prompt + 体验优化  |
+
+
+# 模型下载：
+pip install huggingface_hub
+pip install huggingface_hub hf_transfer
+
+# 可选：启用更快的下载器
+export HF_HUB_ENABLE_HF_TRANSFER=1
+
+# 预下载到 Hugging Face 缓存（默认 ~/.cache/huggingface/hub）
+# 注：如果你在公司网络/证书环境里遇到 SSL 校验失败，`hf download` 可能会报错。
+# 这里使用一个会注入 macOS 系统证书信任链（truststore）的 Python 脚本来下载。
+export HF_ENDPOINT=https://hf-mirror.com
+hf download Systran/faster-distil-whisper-small.en --format human

@@ -6,6 +6,16 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+# On macOS, Python/OpenSSL may not use the system Keychain trust store by default.
+# This can cause SSL verification failures (e.g. when downloading models from HF).
+# truststore makes Python use the OS trust roots.
+try:
+    import truststore  # type: ignore
+
+    truststore.inject_into_ssl()
+except Exception:
+    pass
+
 from app.logging_config import setup_logging
 from app.routers.chat import router as chat_router
 from app.settings import STATIC_DIR
