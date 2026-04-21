@@ -230,12 +230,16 @@
               aria-pressed="false"
               title="Record audio"
             >
-              <svg class="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <svg id="micIconMic" class="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                 <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="1.8"/>
                 <path d="M19 11a7 7 0 0 1-14 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
                 <path d="M12 18v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
                 <path d="M8 21h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
               </svg>
+              <svg id="micIconStop" class="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="display:none;">
+                <rect x="7" y="7" width="10" height="10" rx="2" stroke="currentColor" stroke-width="1.8" />
+              </svg>
+              <span id="micLabel">Record</span>
             </button>
 
             <button id="btnSend" class="sendBtn" type="submit">Send</button>
@@ -254,17 +258,56 @@
       const sessionTitleEl = document.getElementById('sessionTitle');
       const textInputEl = document.getElementById('textInput');
       const btnMic = document.getElementById('btnMic');
+      const micLabelEl = document.getElementById('micLabel');
+      const micIconMicEl = document.getElementById('micIconMic');
+      const micIconStopEl = document.getElementById('micIconStop');
       const btnSend = document.getElementById('btnSend');
       const composerHintEl = document.getElementById('composerHint');
       const composerForm = document.getElementById('composerForm');
       const audioPreviewWrap = document.getElementById('audioPreview');
       const recordingPreview = document.getElementById('recordingPreview');
 
+      // Inject a small info line under the recording preview (helps debug format/silence issues)
+      const recordingInfo = document.createElement('div');
+      recordingInfo.className = 'composerHint';
+      recordingInfo.id = 'recordingInfo';
+      recordingInfo.style.display = 'none';
+      audioPreviewWrap.appendChild(recordingInfo);
+
       let mediaRecorder = null;
       let mediaStream = null;
       let chunks = [];
       let recordedBlob = null;
+      let recordedFilename = null;
       let isRecording = false;
+      let recordingStopped = null;
+      let resolveRecordingStopped = null;
+
+      function pickRecorderMimeType() {
+        const candidates = [
+          'audio/webm;codecs=opus',
+          'audio/webm',
+          'audio/mp4;codecs=mp4a.40.2',
+          'audio/mp4',
+          'audio/ogg;codecs=opus',
+          'audio/ogg',
+        ];
+        for (const t of candidates) {
+          if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) {
+            return t;
+          }
+        }
+        return null;
+      }
+
+      function filenameForMimeType(mimeType) {
+        const mt = (mimeType || '').toLowerCase();
+        if (mt.includes('audio/webm')) return 'recording.webm';
+        if (mt.includes('audio/ogg')) return 'recording.ogg';
+        // Most browsers produce M4A-ish audio in an MP4 container.
+        if (mt.includes('audio/mp4')) return 'recording.m4a';
+        return 'recording.bin';
+      }
 
       function scrollTraceToBottom() {
         traceEl.scrollTop = traceEl.scrollHeight;
@@ -299,6 +342,13 @@
       function setRecordingUi(nextIsRecording) {
         isRecording = nextIsRecording;
         btnMic.setAttribute('aria-pressed', String(nextIsRecording));
+        btnMic.setAttribute('aria-label', nextIsRecording ? 'Stop recording' : 'Record audio');
+        btnMic.title = nextIsRecording ? 'Stop recording' : 'Record audio';
+        if (micLabelEl) micLabelEl.textContent = nextIsRecording ? 'Stop' : 'Record';
+        if (micIconMicEl && micIconStopEl) {
+          micIconMicEl.style.display = nextIsRecording ? 'none' : 'block';
+          micIconStopEl.style.display = nextIsRecording ? 'block' : 'none';
+        }
         composerHintEl.textContent = nextIsRecording
           ? 'Recording... click Mic again to stop.'
           : 'Mic: click to start/stop recording, then Send.';
@@ -307,28 +357,52 @@
       async function startRecording() {
         mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
+        const tracks = mediaStream.getAudioTracks();
+        const track = tracks && tracks.length ? tracks[0] : null;
+
         const options = {};
-        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-          options.mimeType = 'audio/webm;codecs=opus';
-        }
+        const selectedMimeType = pickRecorderMimeType();
+        if (selectedMimeType) options.mimeType = selectedMimeType;
 
         chunks = [];
         recordedBlob = null;
+        recordedFilename = null;
         audioPreviewWrap.style.display = 'none';
+        recordingInfo.style.display = 'none';
 
-        mediaRecorder = new MediaRecorder(mediaStream, options);
-        mediaRecorder.ondataavailable = (e) => {
+        const recorder = new MediaRecorder(mediaStream, options);
+        mediaRecorder = recorder;
+        recordingStopped = new Promise((resolve) => {
+          resolveRecordingStopped = resolve;
+        });
+
+        recorder.ondataavailable = (e) => {
           if (e.data && e.data.size > 0) chunks.push(e.data);
         };
-        mediaRecorder.onstop = () => {
-          recordedBlob = new Blob(chunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+        recorder.onstop = () => {
+          const blobType = recorder.mimeType || (selectedMimeType || 'application/octet-stream');
+          recordedBlob = new Blob(chunks, { type: blobType });
+          recordedFilename = filenameForMimeType(blobType);
           recordingPreview.src = URL.createObjectURL(recordedBlob);
           audioPreviewWrap.style.display = 'block';
+
+          const trackInfo = track
+            ? `${track.label || 'Microphone'} • enabled=${track.enabled} muted=${track.muted}`
+            : 'No audio track';
+
+          recordingInfo.textContent = `Recorded: ${blobType || 'unknown'} • ${(recordedBlob.size / 1024).toFixed(1)} KB • ${trackInfo}`;
+          recordingInfo.style.display = 'block';
           stopStreamTracks(mediaStream);
           mediaStream = null;
+          if (resolveRecordingStopped) {
+            resolveRecordingStopped(recordedBlob);
+            resolveRecordingStopped = null;
+          }
+          mediaRecorder = null;
         };
 
-        mediaRecorder.start();
+        // Timeslice makes browsers emit data periodically; helps avoid tiny/empty blobs.
+        mediaRecorder.start(250);
         setRecordingUi(true);
       }
 
@@ -339,9 +413,29 @@
 
       function stopRecording() {
         if (!mediaRecorder) return;
+        // Ask the recorder to flush any buffered data before stopping.
+        try {
+          if (mediaRecorder.state === 'recording' && mediaRecorder.requestData) {
+            mediaRecorder.requestData();
+          }
+        } catch {
+          // ignore
+        }
         mediaRecorder.stop();
-        mediaRecorder = null;
         setRecordingUi(false);
+      }
+
+      async function stopRecordingAndWaitBlob() {
+        if (!isRecording) return recordedBlob;
+        const waiter = recordingStopped;
+        stopRecording();
+        try {
+          // recordedBlob is assigned in onstop; waiter resolves after stop event fires.
+          await waiter;
+        } catch {
+          // ignore
+        }
+        return recordedBlob;
       }
 
       btnMic.addEventListener('click', async () => {
@@ -359,14 +453,17 @@
 
       composerForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        if (isRecording) stopRecording();
 
         const text = (textInputEl.value || '').trim();
+        if (isRecording) {
+          await stopRecordingAndWaitBlob();
+        }
         const hasAudio = Boolean(recordedBlob);
         if (!text && !hasAudio) return;
 
-        const userContent = text ? text : '(voice message)';
-        appendMessage('user', userContent);
+        const userAudioUrl = recordedBlob ? URL.createObjectURL(recordedBlob) : '';
+        const userContent = text ? text : 'Voice message';
+        appendMessage('user', userContent, userAudioUrl ? { audioUrl: userAudioUrl } : undefined);
         textInputEl.value = '';
 
         const pending = appendMessage('assistant', '...');
@@ -374,16 +471,17 @@
         btnMic.disabled = true;
 
         try {
-          if (!hasAudio) {
-            pending.bubble.textContent = '(backend stub) Text-only is not wired yet. Use Mic + Send for now.';
-            return;
-          }
-
           const fd = new FormData();
-          fd.append('file', recordedBlob, 'recording.webm');
+          if (text) fd.append('text', text);
+          if (recordedBlob) fd.append('file', recordedBlob, recordedFilename || 'recording.bin');
 
           const res = await fetch('/chat', { method: 'POST', body: fd });
-          const payload = await res.json();
+          const payload = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            const detail = payload?.detail || payload?.error?.message || 'Request failed.';
+            pending.bubble.textContent = String(detail);
+            return;
+          }
 
           const transcript = payload.transcript ?? '';
           const response = payload.response ?? '';
