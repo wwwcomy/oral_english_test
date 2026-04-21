@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Oral English Test (V1)</title>
+    <style>
+      :root {
+        --border: #e5e7eb;
+        --muted: #6b7280;
+        --bg: #ffffff;
+        --bg-subtle: #f9fafb;
+        --text: #111827;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        color: var(--text);
+        background: var(--bg);
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      }
+
+      .app {
+        height: 100%;
+        display: flex;
+      }
+
+      .sidebar {
+        width: 280px;
+        border-right: 1px solid var(--border);
+        background: var(--bg-subtle);
+        display: flex;
+        flex-direction: column;
+      }
+
+      .sidebarHeader {
+        padding: 14px 14px 10px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .sidebarTitle {
+        margin: 0;
+        font-size: 14px;
+        letter-spacing: 0.02em;
+        color: var(--muted);
+        font-weight: 600;
+      }
+
+      .sessionList {
+        list-style: none;
+        padding: 8px;
+        margin: 0;
+        overflow: auto;
+      }
+
+      .sessionItem {
+        width: 100%;
+        text-align: left;
+        border: 1px solid transparent;
+        background: transparent;
+        padding: 10px 10px;
+        border-radius: 10px;
+        cursor: pointer;
+        font-size: 14px;
+        color: var(--text);
+      }
+
+      .sessionItem[aria-current="true"] {
+        background: #fff;
+        border-color: var(--border);
+      }
+
+      .main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+
+      .mainHeader {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .mainTitle {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 650;
+      }
+
+      .mainSub {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .trace {
+        flex: 1;
+        overflow: auto;
+        padding: 16px;
+        background: var(--bg);
+      }
+
+      .msg {
+        display: flex;
+        margin: 10px 0;
+      }
+
+      .msg.user { justify-content: flex-end; }
+      .msg.assistant { justify-content: flex-start; }
+
+      .bubble {
+        max-width: min(720px, 85%);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 10px 12px;
+        background: var(--bg-subtle);
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .msg.user .bubble { background: #ffffff; }
+
+      .meta {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .composer {
+        border-top: 1px solid var(--border);
+        padding: 12px;
+        background: var(--bg);
+      }
+
+      .composerRow {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .textInput {
+        flex: 1;
+        min-width: 0;
+        padding: 12px 12px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        font-size: 14px;
+        outline: none;
+      }
+
+      .iconBtn, .sendBtn {
+        border: 1px solid var(--border);
+        background: var(--bg);
+        border-radius: 12px;
+        padding: 10px 12px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-size: 14px;
+      }
+
+      .iconBtn[aria-pressed="true"] {
+        background: var(--bg-subtle);
+      }
+
+      .icon {
+        width: 18px;
+        height: 18px;
+      }
+
+      .composerHint {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .audioPreview {
+        margin-top: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="sidebarHeader">
+          <p class="sidebarTitle">CHAT SESSIONS</p>
+        </div>
+        <ul class="sessionList" id="sessionList">
+          <li>
+            <button class="sessionItem" aria-current="true" type="button" data-session-id="s1">
+              Session 1
+              <div class="meta">Current session</div>
+            </button>
+          </li>
+        </ul>
+      </aside>
+
+      <main class="main">
+        <div class="mainHeader">
+          <div>
+            <h1 class="mainTitle" id="sessionTitle">Session 1</h1>
+            <p class="mainSub">Trace (transcript → response → audio)</p>
+          </div>
+        </div>
+
+        <section class="trace" id="trace" aria-label="Chat trace"></section>
+
+        <section class="composer" aria-label="Input">
+          <form id="composerForm" class="composerRow">
+            <input
+              id="textInput"
+              class="textInput"
+              type="text"
+              placeholder="Type a message..."
+              autocomplete="off"
+            />
+
+            <button
+              id="btnMic"
+              class="iconBtn"
+              type="button"
+              aria-label="Record audio"
+              aria-pressed="false"
+              title="Record audio"
+            >
+              <svg class="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="1.8"/>
+                <path d="M19 11a7 7 0 0 1-14 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                <path d="M12 18v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                <path d="M8 21h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+            </button>
+
+            <button id="btnSend" class="sendBtn" type="submit">Send</button>
+          </form>
+
+          <div class="composerHint" id="composerHint">Mic: click to start/stop recording, then Send.</div>
+          <div class="audioPreview" id="audioPreview" style="display:none;">
+            <audio id="recordingPreview" controls></audio>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      const traceEl = document.getElementById('trace');
+      const sessionTitleEl = document.getElementById('sessionTitle');
+      const textInputEl = document.getElementById('textInput');
+      const btnMic = document.getElementById('btnMic');
+      const btnSend = document.getElementById('btnSend');
+      const composerHintEl = document.getElementById('composerHint');
+      const composerForm = document.getElementById('composerForm');
+      const audioPreviewWrap = document.getElementById('audioPreview');
+      const recordingPreview = document.getElementById('recordingPreview');
+
+      let mediaRecorder = null;
+      let mediaStream = null;
+      let chunks = [];
+      let recordedBlob = null;
+      let isRecording = false;
+
+      function scrollTraceToBottom() {
+        traceEl.scrollTop = traceEl.scrollHeight;
+      }
+
+      function appendMessage(role, content, opts = {}) {
+        const msg = document.createElement('div');
+        msg.className = `msg ${role}`;
+
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        bubble.textContent = content;
+
+        msg.appendChild(bubble);
+
+        if (opts.audioUrl) {
+          const meta = document.createElement('div');
+          meta.className = 'meta';
+
+          const audio = document.createElement('audio');
+          audio.controls = true;
+          audio.src = opts.audioUrl;
+          meta.appendChild(audio);
+          bubble.appendChild(meta);
+        }
+
+        traceEl.appendChild(msg);
+        scrollTraceToBottom();
+        return { msg, bubble };
+      }
+
+      function setRecordingUi(nextIsRecording) {
+        isRecording = nextIsRecording;
+        btnMic.setAttribute('aria-pressed', String(nextIsRecording));
+        composerHintEl.textContent = nextIsRecording
+          ? 'Recording... click Mic again to stop.'
+          : 'Mic: click to start/stop recording, then Send.';
+      }
+
+      async function startRecording() {
+        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        const options = {};
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+          options.mimeType = 'audio/webm;codecs=opus';
+        }
+
+        chunks = [];
+        recordedBlob = null;
+        audioPreviewWrap.style.display = 'none';
+
+        mediaRecorder = new MediaRecorder(mediaStream, options);
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) chunks.push(e.data);
+        };
+        mediaRecorder.onstop = () => {
+          recordedBlob = new Blob(chunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+          recordingPreview.src = URL.createObjectURL(recordedBlob);
+          audioPreviewWrap.style.display = 'block';
+          stopStreamTracks(mediaStream);
+          mediaStream = null;
+        };
+
+        mediaRecorder.start();
+        setRecordingUi(true);
+      }
+
+      function stopStreamTracks(stream) {
+        if (!stream) return;
+        for (const t of stream.getTracks()) t.stop();
+      }
+
+      function stopRecording() {
+        if (!mediaRecorder) return;
+        mediaRecorder.stop();
+        mediaRecorder = null;
+        setRecordingUi(false);
+      }
+
+      btnMic.addEventListener('click', async () => {
+        try {
+          if (!isRecording) {
+            await startRecording();
+          } else {
+            stopRecording();
+          }
+        } catch (e) {
+          setRecordingUi(false);
+          composerHintEl.textContent = 'Microphone permission is required to record.';
+        }
+      });
+
+      composerForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (isRecording) stopRecording();
+
+        const text = (textInputEl.value || '').trim();
+        const hasAudio = Boolean(recordedBlob);
+        if (!text && !hasAudio) return;
+
+        const userContent = text ? text : '(voice message)';
+        appendMessage('user', userContent);
+        textInputEl.value = '';
+
+        const pending = appendMessage('assistant', '...');
+        btnSend.disabled = true;
+        btnMic.disabled = true;
+
+        try {
+          if (!hasAudio) {
+            pending.bubble.textContent = '(backend stub) Text-only is not wired yet. Use Mic + Send for now.';
+            return;
+          }
+
+          const fd = new FormData();
+          fd.append('file', recordedBlob, 'recording.webm');
+
+          const res = await fetch('/chat', { method: 'POST', body: fd });
+          const payload = await res.json();
+
+          const transcript = payload.transcript ?? '';
+          const response = payload.response ?? '';
+          const audioUrl = payload.audio_url ?? '';
+
+          const combined =
+            (transcript ? `Transcript: ${transcript}\n\n` : '') +
+            (response ? `Response: ${response}` : '');
+
+          pending.bubble.textContent = combined || '(empty response)';
+
+          if (audioUrl) {
+            const meta = document.createElement('div');
+            meta.className = 'meta';
+            const audio = document.createElement('audio');
+            audio.controls = true;
+            audio.src = audioUrl;
+            meta.appendChild(audio);
+            pending.bubble.appendChild(meta);
+          }
+        } catch (err) {
+          pending.bubble.textContent = 'Request failed. Please retry.';
+        } finally {
+          recordedBlob = null;
+          audioPreviewWrap.style.display = 'none';
+          btnSend.disabled = false;
+          btnMic.disabled = false;
+        }
+      });
+
+      // Initial message
+      sessionTitleEl.textContent = 'Session 1';
+      appendMessage('assistant', 'Hi! Click the Mic button to record, then Send.');
+    </script>
+  </body>
+</html>
