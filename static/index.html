@@ -181,6 +181,23 @@
         font-size: 12px;
       }
 
+      .composerControls {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 8px;
+      }
+
+      .toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 12px;
+        user-select: none;
+      }
+
       .audioPreview {
         margin-top: 8px;
       }
@@ -245,7 +262,13 @@
             <button id="btnSend" class="sendBtn" type="submit">Send</button>
           </form>
 
-          <div class="composerHint" id="composerHint">Mic: click to start/stop recording, then Send.</div>
+          <div class="composerControls">
+            <div class="composerHint" id="composerHint">Mic: click to start/stop recording, then Send.</div>
+            <label class="toggle" title="Automatically play the AI audio when it arrives">
+              <input id="autoPlayToggle" type="checkbox" />
+              Auto-play
+            </label>
+          </div>
           <div class="audioPreview" id="audioPreview" style="display:none;">
             <audio id="recordingPreview" controls></audio>
           </div>
@@ -266,6 +289,7 @@
       const composerForm = document.getElementById('composerForm');
       const audioPreviewWrap = document.getElementById('audioPreview');
       const recordingPreview = document.getElementById('recordingPreview');
+      const autoPlayToggleEl = document.getElementById('autoPlayToggle');
 
       // Inject a small info line under the recording preview (helps debug format/silence issues)
       const recordingInfo = document.createElement('div');
@@ -499,8 +523,16 @@
             const audio = document.createElement('audio');
             audio.controls = true;
             audio.src = audioUrl;
+            audio.preload = 'auto';
             meta.appendChild(audio);
             pending.bubble.appendChild(meta);
+
+            if (autoPlayToggleEl && autoPlayToggleEl.checked) {
+              // Autoplay may be blocked by browser policy; handle gracefully.
+              audio.play().catch(() => {
+                composerHintEl.textContent = 'Auto-play was blocked by the browser. Click play to listen.';
+              });
+            }
           }
         } catch (err) {
           pending.bubble.textContent = 'Request failed. Please retry.';
