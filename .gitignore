@@ -55,3 +55,4 @@ MANIFEST
 .mine/
 
 .env
+static/audio/*
