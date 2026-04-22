@@ -4,8 +4,9 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from app.logging_config import setup_logging
 from app.services.asr_service import transcribe_with_faster_whisper
+from app.services.tts_service import synthesize_with_piper
 from app.settings import AUDIO_DIR
-from app.utils.ffmpeg import ffmpeg_normalize_to_wav_16k_mono
+from app.utils.ffmpeg import ffmpeg_normalize_to_wav_16k_mono, ffmpeg_wav_to_mp3
 from app.utils.upload import save_upload_file_to_dir
 
 logger = setup_logging()
@@ -45,9 +46,35 @@ async def chat(
     else:
         transcript = text_value
 
-    # LLM/TTS still stubbed for now.
+    # TTS: synthesize transcript into mp3 and return a static URL.
+    # LLM is skipped for now; we speak back the transcript directly.
+    tts_text = transcript.strip() or text_value
+    if not tts_text:
+        raise HTTPException(status_code=400, detail="No text available for TTS.")
+
+    try:
+        wav_out = AUDIO_DIR / f"tts_{uuid4_hex()}.wav"
+        synthesize_with_piper(tts_text, wav_out)
+
+        mp3_name = f"tts_{uuid4_hex()}.mp3"
+        mp3_out = AUDIO_DIR / mp3_name
+        ffmpeg_wav_to_mp3(wav_out, mp3_out)
+
+        audio_url = f"/static/audio/{mp3_name}"
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("TTS failed")
+        raise HTTPException(status_code=500, detail=f"TTS failed: {e}")
+
     return {
         "transcript": transcript,
-        "response": "(stub) Hello! What did you do today?",
-        "audio_url": "",
+        "response": "(stub) LLM skipped; speaking transcript.",
+        "audio_url": audio_url,
     }
+
+
+def uuid4_hex() -> str:
+    import uuid
+
+    return uuid.uuid4().hex
