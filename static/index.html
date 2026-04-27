@@ -211,10 +211,7 @@
         </div>
         <ul class="sessionList" id="sessionList">
           <li>
-            <button class="sessionItem" aria-current="true" type="button" data-session-id="s1">
-              Session 1
-              <div class="meta">Current session</div>
-            </button>
+            <div class="meta" style="padding: 10px 10px;">Loading…</div>
           </li>
         </ul>
       </aside>
@@ -278,6 +275,7 @@
 
     <script>
       const traceEl = document.getElementById('trace');
+      const sessionListEl = document.getElementById('sessionList');
       const sessionTitleEl = document.getElementById('sessionTitle');
       const textInputEl = document.getElementById('textInput');
       const btnMic = document.getElementById('btnMic');
@@ -306,6 +304,101 @@
       let isRecording = false;
       let recordingStopped = null;
       let resolveRecordingStopped = null;
+
+      let currentSessionId = null;
+      let sessionsCache = [];
+
+      async function apiJson(url, options = {}) {
+        const res = await fetch(url, options);
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const detail = payload?.detail || payload?.error?.message || res.statusText || 'Request failed.';
+          throw new Error(String(detail));
+        }
+        return payload;
+      }
+
+      function normalizeRole(role) {
+        const r = String(role || '').toLowerCase();
+        if (r === 'user') return 'user';
+        return 'assistant';
+      }
+
+      function setCurrentSession(session) {
+        currentSessionId = session?.id || null;
+        sessionTitleEl.textContent = session?.title || 'Session';
+        renderSessionList();
+      }
+
+      function renderSessionList() {
+        sessionListEl.innerHTML = '';
+
+        if (!Array.isArray(sessionsCache) || sessionsCache.length === 0) {
+          const li = document.createElement('li');
+          const empty = document.createElement('div');
+          empty.className = 'meta';
+          empty.style.padding = '10px 10px';
+          empty.textContent = 'No sessions';
+          li.appendChild(empty);
+          sessionListEl.appendChild(li);
+          return;
+        }
+
+        for (const s of sessionsCache) {
+          const li = document.createElement('li');
+          const btn = document.createElement('button');
+          btn.className = 'sessionItem';
+          btn.type = 'button';
+          btn.dataset.sessionId = s.id;
+          btn.setAttribute('aria-current', String(s.id === currentSessionId));
+          btn.textContent = s.title || s.id;
+
+          const meta = document.createElement('div');
+          meta.className = 'meta';
+          const count = typeof s.message_count === 'number' ? s.message_count : Number(s.message_count || 0);
+          meta.textContent = `${count} messages`;
+          btn.appendChild(meta);
+
+          li.appendChild(btn);
+          sessionListEl.appendChild(li);
+        }
+      }
+
+      async function loadMessages(sessionId) {
+        traceEl.innerHTML = '';
+        const items = await apiJson(`/sessions/${encodeURIComponent(sessionId)}/messages?limit=200&offset=0`);
+        if (!Array.isArray(items) || items.length === 0) {
+          appendMessage('assistant', 'No messages in this session yet.');
+          return;
+        }
+        for (const m of items) {
+          appendMessage(normalizeRole(m.role), m.content || '');
+        }
+      }
+
+      async function createDefaultSessionIfNeeded() {
+        const items = await apiJson('/sessions?limit=50&offset=0');
+        if (Array.isArray(items) && items.length > 0) return items;
+
+        const created = await apiJson('/sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: 'Session 1', owner_user_id: '' }),
+        });
+        return created ? [created] : [];
+      }
+
+      async function refreshSessionsAndSelectInitial() {
+        sessionsCache = await createDefaultSessionIfNeeded();
+        if (!sessionsCache.length) {
+          renderSessionList();
+          return;
+        }
+
+        const initial = sessionsCache[0];
+        setCurrentSession(initial);
+        await loadMessages(initial.id);
+      }
 
       function pickRecorderMimeType() {
         const candidates = [
@@ -544,9 +637,24 @@
         }
       });
 
-      // Initial message
-      sessionTitleEl.textContent = 'Session 1';
-      appendMessage('assistant', 'Hi! Click the Mic button to record, then Send.');
+      sessionListEl.addEventListener('click', async (e) => {
+        const btn = e.target && e.target.closest ? e.target.closest('button[data-session-id]') : null;
+        if (!btn) return;
+        const sessionId = btn.dataset.sessionId;
+        const session = sessionsCache.find((s) => s.id === sessionId) || { id: sessionId, title: sessionId };
+        try {
+          setCurrentSession(session);
+          await loadMessages(sessionId);
+        } catch (err) {
+          composerHintEl.textContent = String(err?.message || 'Failed to load messages.');
+        }
+      });
+
+      refreshSessionsAndSelectInitial().catch((err) => {
+        renderSessionList();
+        appendMessage('assistant', 'Failed to load sessions.');
+        composerHintEl.textContent = String(err?.message || 'Failed to load sessions.');
+      });
     </script>
   </body>
 </html>

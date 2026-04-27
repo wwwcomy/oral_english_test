@@ -56,3 +56,6 @@ MANIFEST
 
 .env
 static/audio/*
+tmp/*
+models/*
+db/oral_english_test.sqlite3
