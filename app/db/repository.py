@@ -103,7 +103,7 @@ def add_message(
         SET last_message_time = ?,
             last_sequence = ?,
             message_count = message_count + 1,
-            updated_time = ?,
+            updated_time = ?
         WHERE id = ?
         """,
         (now, seq, now, session_id),

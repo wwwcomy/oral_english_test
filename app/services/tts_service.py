@@ -8,8 +8,23 @@ from pathlib import Path
 from piper import PiperVoice
 
 
-voice = PiperVoice.load(
-    "/Users/xingnliu/tools/piper-model/amy/en_US-amy-low.onnx")
+def _load_voice() -> PiperVoice:
+    model_path = os.getenv("PIPER_MODEL_PATH", "").strip()
+    if not model_path:
+        raise RuntimeError(
+            "Missing PIPER_MODEL_PATH. Set it to a Piper voice model (.onnx) path."
+        )
+    return PiperVoice.load(model_path)
+
+
+_voice: PiperVoice | None = None
+
+
+def _get_voice() -> PiperVoice:
+    global _voice
+    if _voice is None:
+        _voice = _load_voice()
+    return _voice
 
 
 def synthesize_with_piper(text: str, wav_out: Path) -> Path:
@@ -17,7 +32,7 @@ def synthesize_with_piper(text: str, wav_out: Path) -> Path:
     """
     wav_out.parent.mkdir(parents=True, exist_ok=True)
     with wave.open(str(wav_out), "wb") as wav_file:
-        voice.synthesize_wav(text, wav_file)
+        _get_voice().synthesize_wav(text, wav_file)
 
     if not wav_out.exists() or wav_out.stat().st_size == 0:
         raise RuntimeError("Piper produced an empty wav output.")
