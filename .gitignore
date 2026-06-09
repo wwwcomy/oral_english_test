@@ -59,3 +59,6 @@ static/audio/*
 tmp/*
 models/*
 db/oral_english_test.sqlite3
+
+# Local debug scripts
+my_main.py
