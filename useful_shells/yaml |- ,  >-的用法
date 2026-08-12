@@ -1,0 +1,15 @@
+yaml |- ,  >-的用法
+
+例如：
+		value: >-
+          --emailInfo '{{workflow.name}} is {{workflow.status}}' --emailSubject 'failed-info' --namespace '{{workflow.namespace}}' --dry-run=false
+或者：
+protocol:
+  description: |-
+    Protocol for port. Must be UDP, TCP, or SCTP.
+    Defaults to "TCP".
+  type: string
+  default: TCP
+
+| ： 保留每行尾部的换行符
+> : 删除每行尾部的换行符，看似多行文本，在程序中会视为一行

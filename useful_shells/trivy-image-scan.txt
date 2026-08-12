@@ -1,0 +1,8 @@
+trivy image --format spdx-json --output result.json alpine:3.18.4
+
+
+trivy image --format spdx-json --output result.json XXX:coronascan-develop
+
+
+
+trivy image --format spdx-json --output result.json XXX:develop

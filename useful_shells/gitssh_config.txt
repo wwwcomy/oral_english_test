@@ -1,0 +1,16 @@
+1. generate ssh key at ~/.ssh
+ssh-keygen
+then input file name
+2. configure ssh config at ~/.ssh/config, add the following section:
+
+#wwwcomy account
+Host github-wwwcomy
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/wwwcomy_github
+
+3. set url in local git repo folder
+git remote -v
+	origin  git@github.com:wwwcomy/vocab_app.git (fetch)
+	origin  git@github.com:wwwcomy/vocab_app.git (push)
+git remote set-url origin git@github-wwwcomy:wwwcomy/vocab_app.git
